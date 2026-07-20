@@ -5,11 +5,13 @@ const SUPABASE_URL = "https://mloogmsxdgiiokwdfnsr.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_okb5ENjIPzUxmJz4icaaAA_WwKswv6h";
 
 const DEFAULT_SETTINGS = {
-  fuelPercent: 28,
-  vehiclePercent: 22,
-  mePercent: 50,
+  fuelPercent: 35,
+  vehiclePercent: 35,
+  mePercent: 30,
   gasPrice: 4.42,
-  dailyFuelTarget: 25
+  dailyFuelTarget: 25,
+  initialCash: 0,
+  initialCard: 0
 };
 
 const db = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -31,8 +33,13 @@ const els = {
   authMessage: $("authMessage"),
   formMessage: $("formMessage"),
   settingsMessage: $("settingsMessage"),
+  startMessage: $("startMessage"),
   percentStatus: $("percentStatus"),
   entryForm: $("entryForm"),
+  journalView: $("journalView"),
+  startView: $("startView"),
+  tabJournal: $("tabJournal"),
+  tabStart: $("tabStart"),
   monthSelect: $("monthSelect"),
   entriesBody: $("entriesBody")
 };
@@ -61,14 +68,25 @@ function bindEvents() {
   els.entryForm.addEventListener("submit", saveEntry);
   els.monthSelect.addEventListener("change", render);
   $("saveSettings").addEventListener("click", saveSettings);
+  $("saveInitialBalances").addEventListener("click", saveInitialBalances);
+  els.tabJournal.addEventListener("click", () => showSection("journal"));
+  els.tabStart.addEventListener("click", () => showSection("start"));
   $("resetPercents").addEventListener("click", () => {
     setPercentInputs(settings);
     updatePreview();
   });
 
-  ["income", "fuelSpent", "otherSpent", "km", "cashIncome", "cashOut", "fuelPercent", "vehiclePercent", "mePercent"].forEach((id) => {
+  ["income", "fuelSpent", "otherSpent", "km", "cashIncome", "fuelPercent", "vehiclePercent", "mePercent"].forEach((id) => {
     $(id).addEventListener("input", updatePreview);
   });
+}
+
+function showSection(section) {
+  const showingStart = section === "start";
+  els.startView.classList.toggle("hidden", !showingStart);
+  els.journalView.classList.toggle("hidden", showingStart);
+  els.tabStart.classList.toggle("secondary", !showingStart);
+  els.tabJournal.classList.toggle("secondary", showingStart);
 }
 
 async function login(event) {
@@ -140,15 +158,19 @@ async function loadSettings() {
     vehiclePercent: Number(data.vehicle_percent),
     mePercent: Number(data.me_percent),
     gasPrice: Number(data.gas_price),
-    dailyFuelTarget: Number(data.daily_fuel_target)
+    dailyFuelTarget: Number(data.daily_fuel_target),
+    initialCash: Number(data.initial_cash || 0),
+    initialCard: Number(data.initial_card || 0)
   } : { ...DEFAULT_SETTINGS };
 
   setPercentInputs(settings);
   setSettingsInputs(settings);
+  setInitialInputs(settings);
 }
 
 async function saveSettings() {
   const next = {
+    ...settings,
     fuelPercent: numberValue("fuelPercent"),
     vehiclePercent: numberValue("vehiclePercent"),
     mePercent: numberValue("mePercent"),
@@ -158,15 +180,7 @@ async function saveSettings() {
 
   if (!validPercentTotal(next)) return;
 
-  const payload = {
-    user_id: currentUser.id,
-    fuel_percent: next.fuelPercent,
-    vehicle_percent: next.vehiclePercent,
-    me_percent: next.mePercent,
-    gas_price: next.gasPrice,
-    daily_fuel_target: next.dailyFuelTarget,
-    updated_at: new Date().toISOString()
-  };
+  const payload = settingsPayload(next);
 
   const { error } = await db.from("uber_settings").upsert(payload, { onConflict: "user_id" });
   if (error) {
@@ -177,6 +191,25 @@ async function saveSettings() {
   settings = next;
   setMessage(els.settingsMessage, "Ajustes guardados.", "ok");
   updatePreview();
+}
+
+async function saveInitialBalances() {
+  const next = {
+    ...settings,
+    initialCash: numberValue("initialCash"),
+    initialCard: numberValue("initialCard")
+  };
+
+  const payload = settingsPayload(next);
+  const { error } = await db.from("uber_settings").upsert(payload, { onConflict: "user_id" });
+  if (error) {
+    setMessage(els.startMessage, error.message, "error");
+    return;
+  }
+
+  settings = next;
+  setMessage(els.startMessage, "Inicio guardado.", "ok");
+  render();
 }
 
 async function loadEntries() {
@@ -204,7 +237,6 @@ async function saveEntry(event) {
   const fuelSpent = numberValue("fuelSpent");
   const otherSpent = numberValue("otherSpent");
   const cashIncome = numberValue("cashIncome");
-  const cashOut = numberValue("cashOut");
   const km = numberValue("km");
   const allocation = allocationFor(income, percents);
 
@@ -215,7 +247,6 @@ async function saveEntry(event) {
     cash_income: cashIncome,
     fuel_spent: fuelSpent,
     other_spent: otherSpent,
-    cash_out: cashOut,
     km,
     fuel_percent: percents.fuelPercent,
     vehicle_percent: percents.vehiclePercent,
@@ -260,7 +291,8 @@ function render() {
   const totals = monthEntries.reduce((acc, entry) => {
     acc.income += Number(entry.income);
     acc.expenses += Number(entry.fuel_spent) + Number(entry.other_spent);
-    acc.cash += Number(entry.cash_income) - Number(entry.fuel_spent) - Number(entry.other_spent) - Number(entry.cash_out);
+    acc.cash += Number(entry.cash_income) - Number(entry.fuel_spent) - Number(entry.other_spent);
+    acc.card += Math.max(Number(entry.income) - Number(entry.cash_income), 0);
     acc.km += Number(entry.km);
     acc.fuel += Number(entry.fuel_amount);
     acc.vehicle += Number(entry.vehicle_amount);
@@ -271,14 +303,18 @@ function render() {
     return acc;
   }, emptyTotals());
   const allTotals = entries.reduce((acc, entry) => {
-    acc.cash += Number(entry.cash_income) - Number(entry.fuel_spent) - Number(entry.other_spent) - Number(entry.cash_out);
+    acc.cash += Number(entry.cash_income) - Number(entry.fuel_spent) - Number(entry.other_spent);
+    acc.card += Math.max(Number(entry.income) - Number(entry.cash_income), 0);
     return acc;
   }, emptyTotals());
+  allTotals.cash += Number(settings.initialCash || 0);
+  allTotals.card += Number(settings.initialCard || 0);
 
   $("summaryTitle").textContent = monthLabel(month);
   $("sumIncome").textContent = money(totals.income);
   $("sumExpenses").textContent = money(totals.expenses);
   $("sumCash").textContent = money(allTotals.cash);
+  $("sumCard").textContent = money(allTotals.card);
   $("sumKm").textContent = totals.km.toFixed(1);
   $("totalFuel").textContent = money(totals.fuel);
   $("totalVehicle").textContent = money(totals.vehicle);
@@ -357,6 +393,25 @@ function setSettingsInputs(values) {
   $("dailyFuelTarget").value = values.dailyFuelTarget;
 }
 
+function setInitialInputs(values) {
+  $("initialCash").value = values.initialCash;
+  $("initialCard").value = values.initialCard;
+}
+
+function settingsPayload(values) {
+  return {
+    user_id: currentUser.id,
+    fuel_percent: values.fuelPercent,
+    vehicle_percent: values.vehiclePercent,
+    me_percent: values.mePercent,
+    gas_price: values.gasPrice,
+    daily_fuel_target: values.dailyFuelTarget,
+    initial_cash: values.initialCash,
+    initial_card: values.initialCard,
+    updated_at: new Date().toISOString()
+  };
+}
+
 function buildMonthOptions() {
   const today = new Date();
   const formatter = new Intl.DateTimeFormat("es", { month: "long", year: "numeric" });
@@ -381,6 +436,7 @@ function emptyTotals() {
     income: 0,
     expenses: 0,
     cash: 0,
+    card: 0,
     km: 0,
     fuel: 0,
     vehicle: 0,

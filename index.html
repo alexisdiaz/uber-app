@@ -45,6 +45,11 @@
           </div>
         </header>
 
+        <nav class="menu-tabs" aria-label="Menu principal">
+          <button type="button" id="tabJournal">Jornada</button>
+          <button type="button" id="tabStart" class="secondary">Inicio</button>
+        </nav>
+
         <section class="summary-grid">
           <article class="metric">
             <span>Ingresos del mes</span>
@@ -59,13 +64,39 @@
             <strong id="sumCash">$0.00</strong>
           </article>
           <article class="metric">
+            <span>Tarjeta Uber</span>
+            <strong id="sumCard">$0.00</strong>
+          </article>
+          <article class="metric">
             <span>Km del mes</span>
             <strong id="sumKm">0</strong>
           </article>
         </section>
 
-        <section class="content-grid">
-          <form id="entryForm" class="panel stack">
+        <section id="startView" class="panel stack hidden">
+          <div class="section-head">
+            <div>
+              <p class="eyebrow">Entrada inicial</p>
+              <h2>Saldos actuales</h2>
+            </div>
+          </div>
+          <div class="field-grid two">
+            <label>
+              Dinero actual en efectivo
+              <input id="initialCash" type="number" min="0" step="0.01" placeholder="0.00">
+            </label>
+            <label>
+              Dinero actual en tarjeta Uber
+              <input id="initialCard" type="number" min="0" step="0.01" placeholder="0.00">
+            </label>
+          </div>
+          <button id="saveInitialBalances" type="button">Guardar inicio</button>
+          <p id="startMessage" class="message"></p>
+        </section>
+
+        <div id="journalView" class="stack">
+          <section class="content-grid">
+            <form id="entryForm" class="panel stack">
             <div class="section-head">
               <div>
                 <p class="eyebrow">Nueva entrada</p>
@@ -94,10 +125,6 @@
               <label>
                 Km recorridos
                 <input id="km" type="number" min="0" step="0.1" required placeholder="0">
-              </label>
-              <label>
-                Retiro de efectivo
-                <input id="cashOut" type="number" min="0" step="0.01" placeholder="0.00">
               </label>
             </div>
 
@@ -173,9 +200,9 @@
               <p id="settingsMessage" class="message"></p>
             </div>
           </aside>
-        </section>
+          </section>
 
-        <section class="panel">
+          <section class="panel">
           <div class="section-head">
             <div>
               <p class="eyebrow">Historial</p>
@@ -199,7 +226,8 @@
               <tbody id="entriesBody"></tbody>
             </table>
           </div>
-        </section>
+          </section>
+        </div>
       </section>
     </main>
 

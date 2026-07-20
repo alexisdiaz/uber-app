@@ -166,7 +166,8 @@ h3 {
 }
 
 .button-row,
-.top-actions {
+.top-actions,
+.menu-tabs {
   display: flex;
   gap: 10px;
   align-items: center;
@@ -199,7 +200,7 @@ h3 {
 
 .summary-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   gap: 12px;
 }
 
@@ -237,6 +238,10 @@ h3 {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 14px;
+}
+
+.field-grid.two {
+  grid-template-columns: repeat(2, 1fr);
 }
 
 .allocation,

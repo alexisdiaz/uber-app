@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Registro Uber</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  </head>
+  <body>
+    <main class="app-shell">
+      <section id="authView" class="auth-view">
+        <div class="auth-panel">
+          <p class="eyebrow">Control diario</p>
+          <h1>Registro de jornada Uber</h1>
+          <p class="muted">Inicia sesion para guardar tus ingresos, gastos, kilometros y reservas.</p>
+
+          <form id="authForm" class="stack">
+            <label>
+              Correo
+              <input id="email" type="email" autocomplete="email" required placeholder="tu@email.com">
+            </label>
+            <label>
+              Contrasena
+              <input id="password" type="password" autocomplete="current-password" required minlength="6" placeholder="Minimo 6 caracteres">
+            </label>
+            <div class="button-row">
+              <button type="submit" id="loginButton">Entrar</button>
+              <button type="button" id="signupButton" class="secondary">Crear cuenta</button>
+            </div>
+          </form>
+          <p id="authMessage" class="message"></p>
+        </div>
+      </section>
+
+      <section id="appView" class="dashboard hidden">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">Mi jornada</p>
+            <h1>Registro Uber</h1>
+          </div>
+          <div class="top-actions">
+            <select id="monthSelect" aria-label="Mes del resumen"></select>
+            <button type="button" id="logoutButton" class="secondary">Salir</button>
+          </div>
+        </header>
+
+        <section class="summary-grid">
+          <article class="metric">
+            <span>Ingresos del mes</span>
+            <strong id="sumIncome">$0.00</strong>
+          </article>
+          <article class="metric">
+            <span>Gastos del mes</span>
+            <strong id="sumExpenses">$0.00</strong>
+          </article>
+          <article class="metric">
+            <span>Efectivo conmigo</span>
+            <strong id="sumCash">$0.00</strong>
+          </article>
+          <article class="metric">
+            <span>Km del mes</span>
+            <strong id="sumKm">0</strong>
+          </article>
+        </section>
+
+        <section class="content-grid">
+          <form id="entryForm" class="panel stack">
+            <div class="section-head">
+              <div>
+                <p class="eyebrow">Nueva entrada</p>
+                <h2>Final de jornada</h2>
+              </div>
+              <input id="entryDate" type="date" required>
+            </div>
+
+            <div class="field-grid">
+              <label>
+                Total ingresado
+                <input id="income" type="number" min="0" step="0.01" required placeholder="0.00">
+              </label>
+              <label>
+                Recibido en efectivo
+                <input id="cashIncome" type="number" min="0" step="0.01" placeholder="0.00">
+              </label>
+              <label>
+                Gasto combustible
+                <input id="fuelSpent" type="number" min="0" step="0.01" placeholder="20.00">
+              </label>
+              <label>
+                Otros gastos
+                <input id="otherSpent" type="number" min="0" step="0.01" placeholder="0.00">
+              </label>
+              <label>
+                Km recorridos
+                <input id="km" type="number" min="0" step="0.1" required placeholder="0">
+              </label>
+              <label>
+                Retiro de efectivo
+                <input id="cashOut" type="number" min="0" step="0.01" placeholder="0.00">
+              </label>
+            </div>
+
+            <div class="allocation">
+              <div class="section-head compact">
+                <div>
+                  <p class="eyebrow">Distribucion opcional</p>
+                  <h2>Porcentajes</h2>
+                </div>
+                <button id="resetPercents" type="button" class="secondary small">Default</button>
+              </div>
+              <div class="percent-grid">
+                <label>
+                  Combustible %
+                  <input id="fuelPercent" type="number" min="0" max="100" step="0.1">
+                </label>
+                <label>
+                  Vehiculo %
+                  <input id="vehiclePercent" type="number" min="0" max="100" step="0.1">
+                </label>
+                <label>
+                  Yo %
+                  <input id="mePercent" type="number" min="0" max="100" step="0.1">
+                </label>
+              </div>
+              <p id="percentStatus" class="message"></p>
+            </div>
+
+            <label>
+              Nota
+              <textarea id="note" rows="3" placeholder="Ej. cambio de aceite, lavado, ruta pesada..."></textarea>
+            </label>
+
+            <div class="preview">
+              <div><span>Combustible</span><strong id="previewFuel">$0.00</strong></div>
+              <div><span>Vehiculo</span><strong id="previewVehicle">$0.00</strong></div>
+              <div><span>Yo</span><strong id="previewMe">$0.00</strong></div>
+            </div>
+
+            <button type="submit">Guardar jornada</button>
+            <p id="formMessage" class="message"></p>
+          </form>
+
+          <aside class="panel stack">
+            <div class="section-head">
+              <div>
+                <p class="eyebrow">Resumen</p>
+                <h2 id="summaryTitle">Mes actual</h2>
+              </div>
+            </div>
+
+            <div class="totals-list">
+              <div><span>Para combustible</span><strong id="totalFuel">$0.00</strong></div>
+              <div><span>Reserva vehiculo</span><strong id="totalVehicle">$0.00</strong></div>
+              <div><span>Para mi</span><strong id="totalMe">$0.00</strong></div>
+              <div><span>Efectivo del mes</span><strong id="totalCashMonth">$0.00</strong></div>
+              <div><span>Combustible gastado</span><strong id="totalFuelSpent">$0.00</strong></div>
+              <div><span>Otros gastos</span><strong id="totalOtherSpent">$0.00</strong></div>
+              <div><span>Galones estimados</span><strong id="totalGallons">0.00</strong></div>
+            </div>
+
+            <div class="settings">
+              <h3>Ajustes base</h3>
+              <label>
+                Precio galon regular
+                <input id="gasPrice" type="number" min="0" step="0.01">
+              </label>
+              <label>
+                Gasto diario usual combustible
+                <input id="dailyFuelTarget" type="number" min="0" step="0.01">
+              </label>
+              <button id="saveSettings" type="button" class="secondary">Guardar ajustes</button>
+              <p id="settingsMessage" class="message"></p>
+            </div>
+          </aside>
+        </section>
+
+        <section class="panel">
+          <div class="section-head">
+            <div>
+              <p class="eyebrow">Historial</p>
+              <h2>Jornadas registradas</h2>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Fecha</th>
+                  <th>Ingreso</th>
+                  <th>Gastos</th>
+                  <th>Km</th>
+                  <th>Comb.</th>
+                  <th>Vehiculo</th>
+                  <th>Yo</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="entriesBody"></tbody>
+            </table>
+          </div>
+        </section>
+      </section>
+    </main>
+
+    <script src="app.js"></script>
+  </body>
+</html>

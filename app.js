@@ -5,13 +5,10 @@ const SUPABASE_URL = "https://mloogmsxdgiiokwdfnsr.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_okb5ENjIPzUxmJz4icaaAA_WwKswv6h";
 
 const DEFAULT_SETTINGS = {
-  fuelPercent: 35,
   vehiclePercent: 35,
-  mePercent: 30,
+  mePercent: 65,
   gasPrice: 4.42,
-  dailyFuelTarget: 25,
-  initialCash: 0,
-  initialCard: 0
+  fuelAmount: 20
 };
 
 const db = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -33,13 +30,9 @@ const els = {
   authMessage: $("authMessage"),
   formMessage: $("formMessage"),
   settingsMessage: $("settingsMessage"),
-  startMessage: $("startMessage"),
   percentStatus: $("percentStatus"),
   entryForm: $("entryForm"),
   journalView: $("journalView"),
-  startView: $("startView"),
-  tabJournal: $("tabJournal"),
-  tabStart: $("tabStart"),
   monthSelect: $("monthSelect"),
   entriesBody: $("entriesBody")
 };
@@ -68,25 +61,14 @@ function bindEvents() {
   els.entryForm.addEventListener("submit", saveEntry);
   els.monthSelect.addEventListener("change", render);
   $("saveSettings").addEventListener("click", saveSettings);
-  $("saveInitialBalances").addEventListener("click", saveInitialBalances);
-  els.tabJournal.addEventListener("click", () => showSection("journal"));
-  els.tabStart.addEventListener("click", () => showSection("start"));
   $("resetPercents").addEventListener("click", () => {
     setPercentInputs(settings);
     updatePreview();
   });
 
-  ["income", "fuelSpent", "otherSpent", "km", "cashIncome", "fuelPercent", "vehiclePercent", "mePercent"].forEach((id) => {
+  ["income", "fuelSpent", "otherSpent", "milesStart", "milesEnd", "fuelAmountInput", "vehiclePercent", "mePercent"].forEach((id) => {
     $(id).addEventListener("input", updatePreview);
   });
-}
-
-function showSection(section) {
-  const showingStart = section === "start";
-  els.startView.classList.toggle("hidden", !showingStart);
-  els.journalView.classList.toggle("hidden", showingStart);
-  els.tabStart.classList.toggle("secondary", !showingStart);
-  els.tabJournal.classList.toggle("secondary", showingStart);
 }
 
 async function login(event) {
@@ -153,29 +135,24 @@ async function loadSettings() {
     return;
   }
 
-  settings = data ? {
-    fuelPercent: Number(data.fuel_percent),
+  settings = data ? normalizeSettings({
     vehiclePercent: Number(data.vehicle_percent),
     mePercent: Number(data.me_percent),
     gasPrice: Number(data.gas_price),
-    dailyFuelTarget: Number(data.daily_fuel_target),
-    initialCash: Number(data.initial_cash || 0),
-    initialCard: Number(data.initial_card || 0)
-  } : { ...DEFAULT_SETTINGS };
+    fuelAmount: Number(data.fuel_amount_default ?? data.daily_fuel_target ?? 20)
+  }) : { ...DEFAULT_SETTINGS };
 
   setPercentInputs(settings);
   setSettingsInputs(settings);
-  setInitialInputs(settings);
 }
 
 async function saveSettings() {
   const next = {
     ...settings,
-    fuelPercent: numberValue("fuelPercent"),
+    fuelAmount: numberValue("fuelAmountSetting"),
     vehiclePercent: numberValue("vehiclePercent"),
     mePercent: numberValue("mePercent"),
-    gasPrice: numberValue("gasPrice"),
-    dailyFuelTarget: numberValue("dailyFuelTarget")
+    gasPrice: numberValue("gasPrice")
   };
 
   if (!validPercentTotal(next)) return;
@@ -191,25 +168,6 @@ async function saveSettings() {
   settings = next;
   setMessage(els.settingsMessage, "Ajustes guardados.", "ok");
   updatePreview();
-}
-
-async function saveInitialBalances() {
-  const next = {
-    ...settings,
-    initialCash: numberValue("initialCash"),
-    initialCard: numberValue("initialCard")
-  };
-
-  const payload = settingsPayload(next);
-  const { error } = await db.from("uber_settings").upsert(payload, { onConflict: "user_id" });
-  if (error) {
-    setMessage(els.startMessage, error.message, "error");
-    return;
-  }
-
-  settings = next;
-  setMessage(els.startMessage, "Inicio guardado.", "ok");
-  render();
 }
 
 async function loadEntries() {
@@ -236,19 +194,24 @@ async function saveEntry(event) {
   const income = numberValue("income");
   const fuelSpent = numberValue("fuelSpent");
   const otherSpent = numberValue("otherSpent");
-  const cashIncome = numberValue("cashIncome");
-  const km = numberValue("km");
+  const distance = distanceValues();
+  if (distance.miles < 0) {
+    setMessage(els.formMessage, "Las millas finales deben ser mayores o iguales a las millas de inicio.", "error");
+    return;
+  }
   const allocation = allocationFor(income, percents);
 
   const payload = {
     user_id: currentUser.id,
     entry_date: $("entryDate").value,
     income,
-    cash_income: cashIncome,
     fuel_spent: fuelSpent,
     other_spent: otherSpent,
-    km,
-    fuel_percent: percents.fuelPercent,
+    km: distance.km,
+    miles_start: distance.start,
+    miles_end: distance.end,
+    miles: distance.miles,
+    fuel_percent: 0,
     vehicle_percent: percents.vehiclePercent,
     me_percent: percents.mePercent,
     fuel_amount: allocation.fuel,
@@ -291,8 +254,7 @@ function render() {
   const totals = monthEntries.reduce((acc, entry) => {
     acc.income += Number(entry.income);
     acc.expenses += Number(entry.fuel_spent) + Number(entry.other_spent);
-    acc.cash += Number(entry.cash_income) - Number(entry.fuel_spent) - Number(entry.other_spent);
-    acc.card += Math.max(Number(entry.income) - Number(entry.cash_income), 0);
+    acc.miles += Number(entry.miles || 0);
     acc.km += Number(entry.km);
     acc.fuel += Number(entry.fuel_amount);
     acc.vehicle += Number(entry.vehicle_amount);
@@ -302,29 +264,19 @@ function render() {
     acc.gallons += Number(entry.gas_price) > 0 ? Number(entry.fuel_spent) / Number(entry.gas_price) : 0;
     return acc;
   }, emptyTotals());
-  const allTotals = entries.reduce((acc, entry) => {
-    acc.cash += Number(entry.cash_income) - Number(entry.fuel_spent) - Number(entry.other_spent);
-    acc.card += Math.max(Number(entry.income) - Number(entry.cash_income), 0);
-    return acc;
-  }, emptyTotals());
-  allTotals.cash += Number(settings.initialCash || 0);
-  allTotals.card += Number(settings.initialCard || 0);
 
   $("summaryTitle").textContent = monthLabel(month);
   $("sumIncome").textContent = money(totals.income);
-  $("sumExpenses").textContent = money(totals.expenses);
-  $("sumCash").textContent = money(allTotals.cash);
-  $("sumCard").textContent = money(allTotals.card);
-  $("sumKm").textContent = totals.km.toFixed(1);
   $("totalFuel").textContent = money(totals.fuel);
   $("totalVehicle").textContent = money(totals.vehicle);
   $("totalMe").textContent = money(totals.me);
-  $("totalCashMonth").textContent = money(totals.cash);
   $("totalFuelSpent").textContent = money(totals.fuelSpent);
   $("totalOtherSpent").textContent = money(totals.otherSpent);
+  $("totalMiles").textContent = totals.miles.toFixed(1);
+  $("totalKm").textContent = totals.km.toFixed(1);
   $("totalGallons").textContent = totals.gallons.toFixed(2);
 
-  els.entriesBody.innerHTML = monthEntries.map(rowTemplate).join("") || '<tr><td colspan="8">No hay jornadas en este mes.</td></tr>';
+  els.entriesBody.innerHTML = monthEntries.map(rowTemplate).join("") || '<tr><td colspan="9">No hay jornadas en este mes.</td></tr>';
   els.entriesBody.querySelectorAll("[data-delete]").forEach((button) => {
     button.addEventListener("click", () => deleteEntry(button.dataset.delete));
   });
@@ -337,6 +289,7 @@ function rowTemplate(entry) {
       <td>${entry.entry_date}</td>
       <td>${money(entry.income)}</td>
       <td>${money(expenses)}</td>
+      <td>${Number(entry.miles || 0).toFixed(1)}</td>
       <td>${Number(entry.km).toFixed(1)}</td>
       <td>${money(entry.fuel_amount)}</td>
       <td>${money(entry.vehicle_amount)}</td>
@@ -349,40 +302,44 @@ function rowTemplate(entry) {
 function updatePreview() {
   const percents = currentPercents();
   const allocation = allocationFor(numberValue("income"), percents);
+  const distance = distanceValues();
   $("previewFuel").textContent = money(allocation.fuel);
   $("previewVehicle").textContent = money(allocation.vehicle);
   $("previewMe").textContent = money(allocation.me);
+  $("distancePreview").textContent = Math.max(distance.miles, 0).toFixed(1) + " mi / " + Math.max(distance.km, 0).toFixed(1) + " km";
   validPercentTotal(percents, false);
 }
 
 function allocationFor(income, percents) {
+  const fuel = Math.min(percents.fuelAmount, income);
+  const remaining = Math.max(income - fuel, 0);
   return {
-    fuel: income * (percents.fuelPercent / 100),
-    vehicle: income * (percents.vehiclePercent / 100),
-    me: income * (percents.mePercent / 100)
+    fuel,
+    vehicle: remaining * (percents.vehiclePercent / 100),
+    me: remaining * (percents.mePercent / 100)
   };
 }
 
 function currentPercents() {
   return {
-    fuelPercent: numberValue("fuelPercent"),
+    fuelAmount: numberValue("fuelAmountInput"),
     vehiclePercent: numberValue("vehiclePercent"),
     mePercent: numberValue("mePercent")
   };
 }
 
 function validPercentTotal(percents, showFormMessage = true) {
-  const total = percents.fuelPercent + percents.vehiclePercent + percents.mePercent;
+  const total = percents.vehiclePercent + percents.mePercent;
   const ok = Math.abs(total - 100) < 0.01;
-  const message = "Total: " + total.toFixed(1) + "%";
-  els.percentStatus.textContent = ok ? message : message + " - debe sumar 100%.";
+  const message = "Vehiculo + Yo: " + total.toFixed(1) + "%. Combustible fijo: " + money(percents.fuelAmount);
+  els.percentStatus.textContent = ok ? message : message + " - vehiculo y yo deben sumar 100%.";
   els.percentStatus.className = ok ? "message ok" : "message error";
-  if (!ok && showFormMessage) setMessage(els.formMessage, "Los porcentajes deben sumar 100%.", "error");
+  if (!ok && showFormMessage) setMessage(els.formMessage, "Vehiculo y yo deben sumar 100%.", "error");
   return ok;
 }
 
 function setPercentInputs(values) {
-  $("fuelPercent").value = values.fuelPercent;
+  $("fuelAmountInput").value = values.fuelAmount;
   $("vehiclePercent").value = values.vehiclePercent;
   $("mePercent").value = values.mePercent;
   updatePreview();
@@ -390,25 +347,43 @@ function setPercentInputs(values) {
 
 function setSettingsInputs(values) {
   $("gasPrice").value = values.gasPrice;
-  $("dailyFuelTarget").value = values.dailyFuelTarget;
-}
-
-function setInitialInputs(values) {
-  $("initialCash").value = values.initialCash;
-  $("initialCard").value = values.initialCard;
+  $("fuelAmountSetting").value = values.fuelAmount;
 }
 
 function settingsPayload(values) {
   return {
     user_id: currentUser.id,
-    fuel_percent: values.fuelPercent,
+    fuel_percent: 0,
     vehicle_percent: values.vehiclePercent,
     me_percent: values.mePercent,
     gas_price: values.gasPrice,
-    daily_fuel_target: values.dailyFuelTarget,
-    initial_cash: values.initialCash,
-    initial_card: values.initialCard,
+    daily_fuel_target: values.fuelAmount,
+    fuel_amount_default: values.fuelAmount,
     updated_at: new Date().toISOString()
+  };
+}
+
+function normalizeSettings(values) {
+  const percentTotal = values.vehiclePercent + values.mePercent;
+  if (Math.abs(percentTotal - 100) > 0.01) {
+    return {
+      ...values,
+      vehiclePercent: DEFAULT_SETTINGS.vehiclePercent,
+      mePercent: DEFAULT_SETTINGS.mePercent
+    };
+  }
+  return values;
+}
+
+function distanceValues() {
+  const start = numberValue("milesStart");
+  const end = numberValue("milesEnd");
+  const miles = end - start;
+  return {
+    start,
+    end,
+    miles,
+    km: miles * 1.609344
   };
 }
 
@@ -435,8 +410,7 @@ function emptyTotals() {
   return {
     income: 0,
     expenses: 0,
-    cash: 0,
-    card: 0,
+    miles: 0,
     km: 0,
     fuel: 0,
     vehicle: 0,

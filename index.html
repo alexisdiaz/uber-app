@@ -45,101 +45,60 @@
           </div>
         </header>
 
-        <nav class="menu-tabs" aria-label="Menu principal">
-          <button type="button" id="tabJournal">Jornada</button>
-          <button type="button" id="tabStart" class="secondary">Inicio</button>
-        </nav>
-
         <section class="summary-grid">
           <article class="metric">
             <span>Ingresos del mes</span>
             <strong id="sumIncome">$0.00</strong>
           </article>
-          <article class="metric">
-            <span>Gastos del mes</span>
-            <strong id="sumExpenses">$0.00</strong>
-          </article>
-          <article class="metric">
-            <span>Efectivo conmigo</span>
-            <strong id="sumCash">$0.00</strong>
-          </article>
-          <article class="metric">
-            <span>Tarjeta Uber</span>
-            <strong id="sumCard">$0.00</strong>
-          </article>
-          <article class="metric">
-            <span>Km del mes</span>
-            <strong id="sumKm">0</strong>
-          </article>
-        </section>
-
-        <section id="startView" class="panel stack hidden">
-          <div class="section-head">
-            <div>
-              <p class="eyebrow">Entrada inicial</p>
-              <h2>Saldos actuales</h2>
-            </div>
-          </div>
-          <div class="field-grid two">
-            <label>
-              Dinero actual en efectivo
-              <input id="initialCash" type="number" min="0" step="0.01" placeholder="0.00">
-            </label>
-            <label>
-              Dinero actual en tarjeta Uber
-              <input id="initialCard" type="number" min="0" step="0.01" placeholder="0.00">
-            </label>
-          </div>
-          <button id="saveInitialBalances" type="button">Guardar inicio</button>
-          <p id="startMessage" class="message"></p>
         </section>
 
         <div id="journalView" class="stack">
           <section class="content-grid">
             <form id="entryForm" class="panel stack">
-            <div class="section-head">
-              <div>
-                <p class="eyebrow">Nueva entrada</p>
-                <h2>Final de jornada</h2>
+              <div class="section-head">
+                <div>
+                  <p class="eyebrow">Nueva entrada</p>
+                  <h2>Final de jornada</h2>
+                </div>
+                <input id="entryDate" type="date" required>
               </div>
-              <input id="entryDate" type="date" required>
-            </div>
 
-            <div class="field-grid">
-              <label>
-                Total ingresado
-                <input id="income" type="number" min="0" step="0.01" required placeholder="0.00">
-              </label>
-              <label>
-                Recibido en efectivo
-                <input id="cashIncome" type="number" min="0" step="0.01" placeholder="0.00">
-              </label>
-              <label>
-                Gasto combustible
-                <input id="fuelSpent" type="number" min="0" step="0.01" placeholder="20.00">
-              </label>
-              <label>
-                Otros gastos
-                <input id="otherSpent" type="number" min="0" step="0.01" placeholder="0.00">
-              </label>
-              <label>
-                Km recorridos
-                <input id="km" type="number" min="0" step="0.1" required placeholder="0">
-              </label>
-            </div>
+              <div class="field-grid">
+                <label>
+                  Total ingresado
+                  <input id="income" type="number" min="0" step="0.01" required placeholder="0.00">
+                </label>
+                <label>
+                  Gasto combustible
+                  <input id="fuelSpent" type="number" min="0" step="0.01" placeholder="20.00">
+                </label>
+                <label>
+                  Otros gastos
+                  <input id="otherSpent" type="number" min="0" step="0.01" placeholder="0.00">
+                </label>
+                <label>
+                  Millas inicio ruta
+                  <input id="milesStart" type="number" min="0" step="0.1" required placeholder="0">
+                </label>
+                <label>
+                  Millas finalizando
+                  <input id="milesEnd" type="number" min="0" step="0.1" required placeholder="0">
+                </label>
+              </div>
+              <p class="calculated">Recorrido calculado: <strong id="distancePreview">0.0 mi / 0.0 km</strong></p>
 
             <div class="allocation">
               <div class="section-head compact">
                 <div>
                   <p class="eyebrow">Distribucion opcional</p>
-                  <h2>Porcentajes</h2>
+                  <h2>Reserva y ganancia</h2>
                 </div>
                 <button id="resetPercents" type="button" class="secondary small">Default</button>
               </div>
               <div class="percent-grid">
                 <label>
-                  Combustible %
-                  <input id="fuelPercent" type="number" min="0" max="100" step="0.1">
+                  Combustible $
+                  <input id="fuelAmountInput" type="number" min="0" step="0.01">
                 </label>
                 <label>
                   Vehiculo %
@@ -180,9 +139,10 @@
               <div><span>Para combustible</span><strong id="totalFuel">$0.00</strong></div>
               <div><span>Reserva vehiculo</span><strong id="totalVehicle">$0.00</strong></div>
               <div><span>Para mi</span><strong id="totalMe">$0.00</strong></div>
-              <div><span>Efectivo del mes</span><strong id="totalCashMonth">$0.00</strong></div>
               <div><span>Combustible gastado</span><strong id="totalFuelSpent">$0.00</strong></div>
               <div><span>Otros gastos</span><strong id="totalOtherSpent">$0.00</strong></div>
+              <div><span>Millas del mes</span><strong id="totalMiles">0.0</strong></div>
+              <div><span>Km del mes</span><strong id="totalKm">0.0</strong></div>
               <div><span>Galones estimados</span><strong id="totalGallons">0.00</strong></div>
             </div>
 
@@ -193,8 +153,8 @@
                 <input id="gasPrice" type="number" min="0" step="0.01">
               </label>
               <label>
-                Gasto diario usual combustible
-                <input id="dailyFuelTarget" type="number" min="0" step="0.01">
+                Combustible por jornada
+                <input id="fuelAmountSetting" type="number" min="0" step="0.01">
               </label>
               <button id="saveSettings" type="button" class="secondary">Guardar ajustes</button>
               <p id="settingsMessage" class="message"></p>
@@ -216,6 +176,7 @@
                   <th>Fecha</th>
                   <th>Ingreso</th>
                   <th>Gastos</th>
+                  <th>Millas</th>
                   <th>Km</th>
                   <th>Comb.</th>
                   <th>Vehiculo</th>

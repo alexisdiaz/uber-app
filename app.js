@@ -5,8 +5,8 @@ const SUPABASE_URL = "https://mloogmsxdgiiokwdfnsr.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_okb5ENjIPzUxmJz4icaaAA_WwKswv6h";
 
 const DEFAULT_SETTINGS = {
-  vehiclePercent: 35,
-  mePercent: 65,
+  vehiclePercent: 50,
+  mePercent: 50,
   gasPrice: 4.42,
   fuelAmount: 20
 };
@@ -270,6 +270,7 @@ function render() {
   $("totalFuel").textContent = money(totals.fuel);
   $("totalVehicle").textContent = money(totals.vehicle);
   $("totalMe").textContent = money(totals.me);
+  $("totalVehicleMe").textContent = money(totals.vehicle + totals.me);
   $("totalFuelSpent").textContent = money(totals.fuelSpent);
   $("totalOtherSpent").textContent = money(totals.otherSpent);
   $("totalMiles").textContent = totals.miles.toFixed(1);
